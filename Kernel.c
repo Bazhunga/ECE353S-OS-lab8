@@ -2170,6 +2170,13 @@ code Kernel
         return -1
       endIf
 
+      -- check if it is to terminal
+      if StrEqual (strKernelAddr, "terminal")
+        openFilePtr = &fileManager.serialTerminalFile
+        currentThread.myProcess.fileDescriptor[emptySlotIndex] = openFilePtr
+        return emptySlotIndex
+      endIf
+
       -- allocate an openFile object
       openFilePtr = fileManager.Open (strKernelAddr)
 
@@ -2201,6 +2208,8 @@ code Kernel
         copiedSoFar: int  -- number of bytes read from the disk so far
         destAddr: int
         synchReadStatus: bool
+        incomingChar: char
+        getCharCount: int
 
       -- check that fileDesc is valid
       if fileDesc >= MAX_FILES_PER_PROCESS || fileDesc < 0
@@ -2212,7 +2221,7 @@ code Kernel
       if openFilePtr == null
         return -1
       endIf
-
+          
       -- check required number of bytes valid (>= 0)
       if sizeInBytes < 0
         return -1
@@ -2222,6 +2231,12 @@ code Kernel
       if buffer asInteger >= PAGE_SIZE * MAX_PAGES_PER_VIRT_SPACE || buffer asInteger < 0
         return -1
       endIf
+
+      -- if it is the terminal, read the things into the buffer
+      if openFilePtr == &fileManager.serialTerminalFile
+        getCharCount = serialDriver.getBufferSize
+        while getCharCount > 0
+          incomingChar = serialDriver.GetChar ()
 
       -- read stuff
       -- initialize the variables
@@ -2275,7 +2290,7 @@ code Kernel
 
       endWhile
 
-
+--- REMEMBER TO REPLACE \R WITH \N CHARACTER ---
       -- iteration # 2 -- actual processing
       -- iterate, conpute size of next chunk and process
 
@@ -2309,6 +2324,7 @@ code Kernel
         if thisChunkSize <= 0
           break
         endIf
+
         -- do the read
         currentThread.myProcess.addrSpace.SetDirty (virtPage)
         currentThread.myProcess.addrSpace.SetReferenced (virtPage)
@@ -2555,7 +2571,10 @@ code Kernel
 
       -- if a file can be opened, close it
       if openFilePtr != null
-        fileManager.Close (openFilePtr)
+        -- close that file only if it is not the terminal
+        if openFilePtr != &fileManager.serialTerminalFile
+          fileManager.Close (openFilePtr)
+        endIf
       endIf
 
     endFunction
@@ -3475,12 +3494,47 @@ code Kernel
       ----------  SerialDriver . GetChar  ----------
 
       method GetChar () returns char
-        return 'a'
+        var
+         incomingChar: char
+
+        serialLock.Lock ()
+
+        -- wait on the condition variable is there is nothing to fetch
+        if getBufferSize == 0
+          getCharacterAvail.Wait (&serialLock)
+        endIf
+
+        incomingChar = getBuffer[getBufferNextOut]
+        getBufferNextOut = (getBufferNextOut + 1) % getBufferSize
+        getBufferSize = getBufferNextIn - getBufferNextOut
+
+        serialLock.Unlock ()
+
+        return incomingChar
+
       endMethod
 
       ----------  SerialDriver . PutChar  ----------
 
       method PutChar (value: char)
+
+        serialLock.Lock ()
+
+        -- wait on the semaphore if there is no space to put more chars
+        if putBufferSize == SERIAL_PUT_BUFFER_SIZE
+          putBufferSem.Down ()
+        endIf
+
+        serialLock.Lock ()
+
+        putBuffer[putBufferNextIn] = char
+        putBufferNextIn = (putBufferNextIn + 1) % putBufferSize
+
+        serialLock.Unlock ()
+
+        serialNeedsAttention.Up ()
+
+        return
 
       endMethod
 
