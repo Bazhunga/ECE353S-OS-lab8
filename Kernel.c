@@ -260,7 +260,6 @@ code Kernel
           var
             oldIntStat: int
 
-print ("down on semaphore\n")
           oldIntStat = SetInterruptsTo (DISABLED)
           if count == 0x80000000
             FatalError ("Semaphore count underflowed during 'Down' operation")
@@ -389,7 +388,6 @@ print ("down on semaphore\n")
           var
             oldIntStat: int
 
-print ("waiting in condition\n")
           if ! mutex.IsHeldByCurrentThread ()
             FatalError ("Attempt to wait on condition when mutex is not held")
           endIf
@@ -489,7 +487,6 @@ print ("waiting in condition\n")
           *(stackTop asPtrTo int) = ThreadStartUp asInteger
           status = READY
           readyList.AddToEnd (self)
-          PrintReadyList ()
           junk = SetInterruptsTo (oldIntStat)
         endMethod
 
@@ -1204,7 +1201,7 @@ print ("waiting in condition\n")
 ------------------------  SerialHandlerFunction  ------------------------------
 
   function SerialHandlerFunction (ignore: int)
-print ("serialHandlerThread inside SerialHandlerFunction\n")
+
     serialDriver.SerialHandler ()
 
   endFunction
@@ -1739,9 +1736,8 @@ print ("serialHandlerThread inside SerialHandlerFunction\n")
     -- for the duration of its execution.
     --
       currentInterruptStatus = DISABLED
-print ("SerialInterruptHandler invoked!\n")
+
       if serialHasBeenInitialized
-print ("serialNeedsAttention up done.\n")
         serialDriver.serialNeedsAttention.Up ()
       endIf
 
@@ -2225,7 +2221,7 @@ print ("serialNeedsAttention up done.\n")
         destAddr: int
         synchReadStatus: bool
         incomingChar: char
-        i: int
+        -- i: int
 
       -- check that fileDesc is valid
       if fileDesc >= MAX_FILES_PER_PROCESS || fileDesc < 0
@@ -2264,15 +2260,15 @@ print ("serialNeedsAttention up done.\n")
         endIf
 
         destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
-printCharVar ("incomingChar(1)", incomingChar)
+
         -- read into the buffer
         while true
-          if incomingChar == '\n' || incomingChar == '\r' || copiedSoFar == sizeInBytes
-            return copiedSoFar
-          endIf
 
--- >>>>>
-print ("before calling GetChar\n")
+          -- if incomingChar == '\n' || incomingChar == '\r' || copiedSoFar == sizeInBytes
+          --   return copiedSoFar
+          -- endIf
+
+/*
 for (i = 0; i < SERIAL_GET_BUFFER_SIZE; i = i + 1)
   printInt (i)
   print (": ")
@@ -2281,10 +2277,9 @@ for (i = 0; i < SERIAL_GET_BUFFER_SIZE; i = i + 1)
 endFor 
 printIntVar ("getBufferNextOut", serialDriver.getBufferNextOut)
 printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
--- <<<<<
+*/
 
           incomingChar = serialDriver.GetChar ()
-printCharVar ("incomingChar(2)", incomingChar)
           if incomingChar == intToChar (4)
             return copiedSoFar
           endIf
@@ -3627,7 +3622,7 @@ printCharVar ("incomingChar(2)", incomingChar)
         putBufferSem.Init (SERIAL_PUT_BUFFER_SIZE)   -- one initial signal per buffer slot
 
         serialNeedsAttention = new Semaphore
-        serialNeedsAttention.Init (1)         
+        serialNeedsAttention.Init (0)         
 
         self.serialHandlerThread = new Thread
         self.serialHandlerThread.Init ("serialHandlerThread")
@@ -3654,12 +3649,10 @@ printCharVar ("incomingChar(2)", incomingChar)
          charFetched: char
 
         serialLock.Lock ()
-print ("inside GetChar function\n")
+
         -- wait on the condition variable is there is nothing to fetch
         if getBufferSize == 0
-print ("waits in the condition variable\n")
           getCharacterAvail.Wait (&serialLock)
-print ("wakes up\n")
         endIf
 
         charFetched = getBuffer[getBufferNextOut]
@@ -3667,7 +3660,7 @@ print ("wakes up\n")
         getBufferSize = (getBufferNextIn - getBufferNextOut) % SERIAL_GET_BUFFER_SIZE
 
         serialLock.Unlock ()
-printCharVar ("(inside GetChar function) charFetched", charFetched)
+
         return charFetched
 
       endMethod
@@ -3705,66 +3698,65 @@ printCharVar ("(inside GetChar function) charFetched", charFetched)
           output_ready_bit: int
           inChar: char
           outChar: char
-print ("inside serialDriver.serialHandler")
-        -- wait until there is an event
-        serialNeedsAttention.Down ()
 
-        serial_status_word = *(serial_status_word_address)
+        while true
+          -- wait until there is an event
+          serialNeedsAttention.Down ()
 
-        -- input stream:
-        character_available_bit = serial_status_word & SERIAL_CHARACTER_AVAILABLE_BIT
+          serial_status_word = *(SERIAL_STATUS_WORD_ADDRESS asPtrTo int)
 
-        -- if character available, add it to the input buffer
-        if character_available_bit == 1
-print ("have input character\n")
-          -- first get a lock on accessing the shared buffer
-          serialLock.Lock ()
+          -- input stream:
+          character_available_bit = serial_status_word & SERIAL_CHARACTER_AVAILABLE_BIT
 
-          -- get input character
-          inChar = intToChar (*serial_data_word_address)
-          -- if buffer full already, drop this character
-printCharVar ("inChar", inChar)
-          if getBufferSize == SERIAL_GET_BUFFER_SIZE
-            print ("\nSerial input buffer overrun - character '")
-            printChar (inChar)
-            print ("' was ignored\n")
+          -- if character available, add it to the input buffer
+          if character_available_bit == 1
 
-          -- if not, add it to the buffer
-          else
-print ("no overflow")
-            getBuffer[getBufferNextIn] = inChar
-            getBufferNextIn = (getBufferNextIn + 1) % SERIAL_GET_BUFFER_SIZE
-            getCharacterAvail.Signal (& serialLock)
+            -- first get a lock on accessing the shared buffer
+            serialLock.Lock ()
+
+            -- get input character
+            inChar = intToChar (*(SERIAL_DATA_WORD_ADDRESS asPtrTo int))
+
+            -- if buffer full already, drop this character
+            if getBufferSize == SERIAL_GET_BUFFER_SIZE
+              print ("\nSerial input buffer overrun - character '")
+              printChar (inChar)
+              print ("' was ignored\n")
+
+            -- if not, add it to the buffer
+            else
+
+              getBuffer[getBufferNextIn] = inChar
+              getBufferNextIn = (getBufferNextIn + 1) % SERIAL_GET_BUFFER_SIZE
+              getCharacterAvail.Signal (& serialLock)
+            endIf
+
+            serialLock.Unlock ()
+
           endIf
-
-          serialLock.Unlock ()
-
-        endIf
-      
-        -- output stream:
-        output_ready_bit = serial_status_word & SERIAL_OUTPUT_READY_BIT
-
-        if output_ready_bit == 1
-
-          print ("char output available\n")
-
-          serialLock.Lock ()
-
-          -- check if there are characters queued for output
-          if putBufferSize != 0
-            outChar = putBuffer[putBufferNextOut]
-            *serial_data_word_address = charToInt (outChar)
-            putBufferNextOut = (putBufferNextOut + 1) % SERIAL_PUT_BUFFER_SIZE
-            putBufferSize = putBufferSize - 1
-          endIf
-
-          putBufferSem.Up ()
-
-          serialLock.Unlock ()
-
-        endIf
-
         
+          -- output stream:
+          output_ready_bit = serial_status_word & SERIAL_OUTPUT_READY_BIT
+
+          if output_ready_bit == 1
+
+            serialLock.Lock ()
+
+            -- check if there are characters queued for output
+            if putBufferSize != 0
+              outChar = putBuffer[putBufferNextOut]
+              *serial_data_word_address = charToInt (outChar)
+              putBufferNextOut = (putBufferNextOut + 1) % SERIAL_PUT_BUFFER_SIZE
+              putBufferSize = putBufferSize - 1
+            endIf
+
+            putBufferSem.Up ()
+
+            serialLock.Unlock ()
+
+          endIf
+
+        endWhile        
 
       endMethod
 

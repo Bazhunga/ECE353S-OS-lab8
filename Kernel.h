@@ -394,10 +394,10 @@ header Kernel
   -- THere is only one instance of this class.
   -- 
   const
-    SERIAL_CHARACTER_AVAILABLE_BIT = 1                -- in hex: 0X00000001
-    SERIAL_OUTPUT_READY_BIT = 2                       -- in hex: 0X00000002
-    SERIAL_STATUS_WORD_ADDRESS = 16776960             -- in hex: 0X00FFFF00
-    SERIAL_DATA_WORD_ADDRESS = 16776964               -- in hex: 0X00FFFF04
+    SERIAL_CHARACTER_AVAILABLE_BIT = 1                -- in hex: 0X0000 0001
+    SERIAL_OUTPUT_READY_BIT = 2                       -- in hex: 0X0000 0002
+    SERIAL_STATUS_WORD_ADDRESS = 16776960             -- in hex: 0X00ff ff00
+    SERIAL_DATA_WORD_ADDRESS = 16776964               -- in hex: 0X00ff ff04
 
   class SerialDriver
     superclass Object

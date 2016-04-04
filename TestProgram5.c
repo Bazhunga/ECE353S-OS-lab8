@@ -18,9 +18,8 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
     -- compile and run this program, and hand in the output it produces.
     --
 
-      BasicSerialTest ()
-
-      -- KeyTest ()
+      -- BasicSerialTest ()
+      KeyTest ()
       -- EchoTest ()
       -- LineEchoTest ()
       -- EOFTest ()
@@ -54,7 +53,9 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
       -- Try reading a single character...
       print ("Hit the \"a\" key.  Do not hit ENTER or RETURN...\n")
       ch = 'x'
+
       i = Sys_Read (fd, &ch, 1)
+
       -- Make sure the syscall returns 1...
       if i == 1
         print ("Returned value is correct.\n")
@@ -73,9 +74,7 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
       -- Try reading a several characters...
       print ("\nPlease type \"abc\".  Do not hit ENTER or RETURN...\n")
       StrCopy (&UserBuffer, "0123456789")
-print ("before sys_read\n")
       i = Sys_Read (fd, &UserBuffer[2], 3)
-print ("here :)\n")
       -- Make sure the syscall returns 3...
       if i == 3
         print ("Returned value is correct.\n")
