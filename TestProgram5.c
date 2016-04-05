@@ -18,10 +18,10 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
     -- compile and run this program, and hand in the output it produces.
     --
 
-      -- BasicSerialTest ()
-      KeyTest ()
+      -- BasicSerialTest () -- Match
+      -- KeyTest ()
       -- EchoTest ()
-      -- LineEchoTest ()
+      LineEchoTest ()
       -- EOFTest ()
       -- OpenCloseTerminalTest ()
       -- TerminalErrorTest ()
@@ -295,6 +295,7 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
       while true
         -- Get one character...
         i = Sys_Read (fd, &ch, 1)
+        -- printCharVar ("ch", ch)
         -- If the returned value is not 1...
         if i == 0
           print ("\n*****  WARNING: Returned value from Read is zero; This should only occur when control-D is typed\n")
@@ -353,9 +354,11 @@ var bigBuffer: array [9000] of char = new array of char { 9000 of '?' }
       if fd < 0
         printIntVar ("**************************  ERROR: Problems with open, fd", fd)
       endIf
-
+print ("here\n")
       while true
+print ("inside\n")
         i = Sys_Read (fd, &(smallBuff[0]), BUFF_MAX)
+print ("reads\n")
         printIntVar ("\nNumber of characters entered", i)
         j = Sys_Write (fd,  &(smallBuff[0]), i)
         if i != j
