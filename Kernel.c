@@ -2491,7 +2491,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         offset = virtAddr % PAGE_SIZE
 
         -- check for errors and deal with errors
-        if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
+        if virtPage < 0 || virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
           return -1
         endIf
 
@@ -2546,7 +2546,7 @@ printIntVar ("putBufferNextOut", serialDriver.putBufferNextOut)
           offset = virtAddr % PAGE_SIZE
 
           -- check for errors and deal with errors
-          if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
+          if virtPage < 0 || virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
             return -1
           endIf
 
