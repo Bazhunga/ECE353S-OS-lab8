@@ -1739,6 +1739,7 @@ code Kernel
 
       if serialHasBeenInitialized
         serialDriver.serialNeedsAttention.Up ()
+        -- print ("Yo\n")
       endIf
 
       currentInterruptStatus = ENABLED
@@ -2221,8 +2222,10 @@ code Kernel
         destAddr: int
         synchReadStatus: bool
         incomingChar: char
-        -- i: int
+        i: int
 
+      i = 0
+      
       -- check that fileDesc is valid
       if fileDesc >= MAX_FILES_PER_PROCESS || fileDesc < 0
         return -1
@@ -2261,12 +2264,12 @@ code Kernel
 
         destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
 
-        -- read into the buffer
+        -- read into the get buffer
         while true
 
-          -- if incomingChar == '\n' || incomingChar == '\r' || copiedSoFar == sizeInBytes
-          --   return copiedSoFar
-          -- endIf
+          if incomingChar == '\n' || incomingChar == '\r' || copiedSoFar == sizeInBytes
+            return copiedSoFar
+          endIf
 
 /*
 for (i = 0; i < SERIAL_GET_BUFFER_SIZE; i = i + 1)
@@ -2280,6 +2283,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
 */
 
           incomingChar = serialDriver.GetChar ()
+
           if incomingChar == intToChar (4)
             return copiedSoFar
           endIf
@@ -2305,7 +2309,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
           endIf
 
           destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
-          
+
         endWhile
 
       endIf
@@ -2445,7 +2449,8 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         copiedSoFar: int  -- number of bytes read from the disk so far
         destAddr: int
         SynchWriteStatus: bool
-        -- outgoingChar: char
+        outgoingChar: char
+        i: int
 
       -- check that fileDesc is valid
       if fileDesc >= MAX_FILES_PER_PROCESS || fileDesc < 0
@@ -2464,7 +2469,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         return -1
       endIf
 
-/*      -- if it is the terminal
+      -- if it is the terminal
       if openFilePtr == &fileManager.serialTerminalFile
 
         -- invalid if trying to read from a place not in our address space
@@ -2473,36 +2478,56 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         endIf
 
         -- initialize the variables
-        outgoingChar = '>'  -- this is just a random one
+        outgoingChar = '<'  -- this is just a random one
         copiedSoFar = 0
         virtAddr = buffer asInteger
         virtPage = virtAddr / PAGE_SIZE
         offset = virtAddr % PAGE_SIZE
 
         -- check for errors and deal with errors
-        if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false || currentThread.myProcess.addrSpace.IsWritable (virtPage) == false
+        if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
           return -1
         endIf
 
         destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
 
-        -- read into the buffer
-        while serialDriver.putBufferSize > 0
-          if incomingChar == '\n'
-            
-          endIf
+        -- write to the buffer
+        while true
 
-          incomingChar = serialDriver.GetChar ()
+/*
+for (i = 0; i < SERIAL_PUT_BUFFER_SIZE; i = i + 1)
+  printInt (i)
+  print (": ")
+  printChar (serialDriver.putBuffer[i])
+  nl ()
+endFor 
 
-          if incomingChar == intToChar (4)
+printIntVar ("putBufferNextIn", serialDriver.putBufferNextIn)
+printIntVar ("putBufferNextOut", serialDriver.putBufferNextOut)
+*/
+          outgoingChar = *(destAddr asPtrTo char)
+
+          if copiedSoFar == sizeInBytes
             return copiedSoFar
           endIf
+          
+          if outgoingChar == intToChar (4)
+            serialDriver.PutChar (outgoingChar)
+            print ("oops!\n")
+            return copiedSoFar
+          endIf
+          
+          if outgoingChar == '\n'
+            serialDriver.PutChar ('\r')
+          endIf
 
-          *(destAddr asPtrTo int) = incomingChar
-          currentThread.myProcess.addrSpace.SetDirty (virtPage)
+i = 0
+-- printCharVar ("outgoingChar", outgoingChar)
+          serialDriver.PutChar (outgoingChar)
+          
           currentThread.myProcess.addrSpace.SetReferenced (virtPage)
           copiedSoFar = copiedSoFar + 1
-
+-- printIntVar ("copiedSoFar", copiedSoFar)
           -- check if we are done
           if copiedSoFar == sizeInBytes
             return copiedSoFar
@@ -2514,16 +2539,16 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
           offset = virtAddr % PAGE_SIZE
 
           -- check for errors and deal with errors
-          if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false || currentThread.myProcess.addrSpace.IsWritable (virtPage) == false
+          if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false
             return -1
           endIf
 
           destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
-          
+       
         endWhile
 
       endIf
-*/
+
 
       -- write stuff
       -- initialize the variables
@@ -3594,8 +3619,6 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
       ----------  SerialDriver . Init  ----------
 
       method Init ()
-        var
-          i: int
 
         print ("Initializing Serial Driver...\n")
 
@@ -3630,14 +3653,6 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
 
         serialHasBeenInitialized = true
 
-        for (i = 0; i < SERIAL_GET_BUFFER_SIZE; i = i + 1)
-          getBuffer[i] = '-'
-        endFor 
-
-        for (i = 0; i < SERIAL_PUT_BUFFER_SIZE; i = i + 1)
-          putBuffer[i] = '-'
-        endFor 
-
         return
 
       endMethod
@@ -3656,6 +3671,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         endIf
 
         charFetched = getBuffer[getBufferNextOut]
+
         getBufferNextOut = (getBufferNextOut + 1) % SERIAL_GET_BUFFER_SIZE
         getBufferSize = (getBufferNextIn - getBufferNextOut) % SERIAL_GET_BUFFER_SIZE
 
@@ -3670,20 +3686,21 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
       method PutChar (value: char)
 
         -- wait on the semaphore if there is no space to put more chars
-        if putBufferSize == SERIAL_PUT_BUFFER_SIZE
+        printIntVar ("putBufferSize", putBufferSize)
+        -- if putBufferSize >= SERIAL_PUT_BUFFER_SIZE
+          print ("down\n")
           putBufferSem.Down ()
-        endIf
+        -- endIf
 
         serialLock.Lock ()
 
         putBuffer[putBufferNextIn] = value
         putBufferNextIn = (putBufferNextIn + 1) % SERIAL_PUT_BUFFER_SIZE
-        putBufferSize = (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
+        putBufferSize = putBufferSize + 1 -- (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
 
         serialLock.Unlock ()
 
         serialNeedsAttention.Up ()
-
         return
 
       endMethod
@@ -3707,7 +3724,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
 
           -- input stream:
           character_available_bit = serial_status_word & SERIAL_CHARACTER_AVAILABLE_BIT
-
+ 
           -- if character available, add it to the input buffer
           if character_available_bit == 1
 
@@ -3725,7 +3742,6 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
 
             -- if not, add it to the buffer
             else
-
               getBuffer[getBufferNextIn] = inChar
               getBufferNextIn = (getBufferNextIn + 1) % SERIAL_GET_BUFFER_SIZE
               getCharacterAvail.Signal (& serialLock)
@@ -3738,19 +3754,22 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
           -- output stream:
           output_ready_bit = serial_status_word & SERIAL_OUTPUT_READY_BIT
 
-          if output_ready_bit == 1
+          if output_ready_bit == 2
 
             serialLock.Lock ()
 
             -- check if there are characters queued for output
             if putBufferSize != 0
+
               outChar = putBuffer[putBufferNextOut]
-              *serial_data_word_address = charToInt (outChar)
+
+              *(SERIAL_DATA_WORD_ADDRESS asPtrTo int) = charToInt (outChar)
               putBufferNextOut = (putBufferNextOut + 1) % SERIAL_PUT_BUFFER_SIZE
-              putBufferSize = putBufferSize - 1
+              putBufferSize = putBufferSize - 1 -- (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
             endIf
 
             putBufferSem.Up ()
+print ("up\n")
 
             serialLock.Unlock ()
 
