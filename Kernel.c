@@ -242,6 +242,7 @@ code Kernel
             oldIntStat: int
             t: ptr to Thread
           oldIntStat = SetInterruptsTo (DISABLED)
+
           if count == 0x7fffffff
             FatalError ("Semaphore count overflowed during 'Up' operation")
           endIf
@@ -261,6 +262,7 @@ code Kernel
             oldIntStat: int
 
           oldIntStat = SetInterruptsTo (DISABLED)
+
           if count == 0x80000000
             FatalError ("Semaphore count underflowed during 'Down' operation")
           endIf
@@ -2263,10 +2265,14 @@ code Kernel
         endIf
 
         destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
-
+        
         -- read into the get buffer
         while true
 
+          if destAddr == 0
+            return copiedSoFar
+          endIf
+        
           if incomingChar == '\n' || incomingChar == '\r' || copiedSoFar == sizeInBytes
             return copiedSoFar
           endIf
@@ -2307,7 +2313,7 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
           if virtPage < 0 && virtPage >= MAX_PAGES_PER_VIRT_SPACE || currentThread.myProcess.addrSpace.IsValid (virtPage) == false || currentThread.myProcess.addrSpace.IsWritable (virtPage) == false
             return -1
           endIf
-
+          
           destAddr = currentThread.myProcess.addrSpace.ExtractFrameAddr (virtPage) + offset
 
         endWhile
@@ -2494,17 +2500,6 @@ printIntVar ("getBufferNextIn", serialDriver.getBufferNextIn)
         -- write to the buffer
         while true
 
-/*
-for (i = 0; i < SERIAL_PUT_BUFFER_SIZE; i = i + 1)
-  printInt (i)
-  print (": ")
-  printChar (serialDriver.putBuffer[i])
-  nl ()
-endFor 
-
-printIntVar ("putBufferNextIn", serialDriver.putBufferNextIn)
-printIntVar ("putBufferNextOut", serialDriver.putBufferNextOut)
-*/
           outgoingChar = *(destAddr asPtrTo char)
 
           if copiedSoFar == sizeInBytes
@@ -2522,12 +2517,24 @@ printIntVar ("putBufferNextOut", serialDriver.putBufferNextOut)
           endIf
 
 i = 0
--- printCharVar ("outgoingChar", outgoingChar)
+
           serialDriver.PutChar (outgoingChar)
-          
+
+/*        
+for (i = 0; i < SERIAL_PUT_BUFFER_SIZE; i = i + 1)
+  printInt (i)
+  print (": ")
+  printChar (serialDriver.putBuffer[i])
+  nl ()
+endFor 
+
+printIntVar ("putBufferNextIn", serialDriver.putBufferNextIn)
+printIntVar ("putBufferNextOut", serialDriver.putBufferNextOut)
+  */
+       
           currentThread.myProcess.addrSpace.SetReferenced (virtPage)
           copiedSoFar = copiedSoFar + 1
--- printIntVar ("copiedSoFar", copiedSoFar)
+
           -- check if we are done
           if copiedSoFar == sizeInBytes
             return copiedSoFar
@@ -3686,17 +3693,14 @@ i = 0
       method PutChar (value: char)
 
         -- wait on the semaphore if there is no space to put more chars
-        printIntVar ("putBufferSize", putBufferSize)
-        -- if putBufferSize >= SERIAL_PUT_BUFFER_SIZE
-          print ("down\n")
-          putBufferSem.Down ()
-        -- endIf
 
+        
+        putBufferSem.Down ()
         serialLock.Lock ()
 
         putBuffer[putBufferNextIn] = value
         putBufferNextIn = (putBufferNextIn + 1) % SERIAL_PUT_BUFFER_SIZE
-        putBufferSize = putBufferSize + 1 -- (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
+        putBufferSize = (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
 
         serialLock.Unlock ()
 
@@ -3760,25 +3764,22 @@ i = 0
 
             -- check if there are characters queued for output
             if putBufferSize != 0
-
+printIntVar ("putBufferSize", putBufferSize)
               outChar = putBuffer[putBufferNextOut]
 
               *(SERIAL_DATA_WORD_ADDRESS asPtrTo int) = charToInt (outChar)
+              printCharVar("outChar", outChar)
               putBufferNextOut = (putBufferNextOut + 1) % SERIAL_PUT_BUFFER_SIZE
               putBufferSize = putBufferSize - 1 -- (putBufferNextIn - putBufferNextOut) % SERIAL_PUT_BUFFER_SIZE
+              
+              putBufferSem.Up ()
+                            
             endIf
-
-            putBufferSem.Up ()
-print ("up\n")
-
+            
             serialLock.Unlock ()
-
+            
           endIf
-
         endWhile        
-
       endMethod
-
   endBehavior
-
 endCode
